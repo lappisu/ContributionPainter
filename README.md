@@ -46,7 +46,7 @@ The reason for a dedicated repo is simple: the tool uses `git push --force` to o
 ```bash
 git clone https://github.com/lappisu/ContributionPainter/
 cd src
-npm install
+npm install express moment
 ```
 
 ### 3. Start the server
