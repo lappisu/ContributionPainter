@@ -1,128 +1,885 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>GitHub Contribution Painter</title>
-    <style>
-        body { 
-            background: #0d1117; 
-            color: #c9d1d9; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            display: flex; flex-direction: column; align-items: center; padding: 50px;
-            user-select: none;
-        }
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(52, 12px); 
-            grid-template-rows: repeat(7, 12px);
-            grid-auto-flow: column;
-            gap: 3px; background: #0d1117; padding: 15px;
-            border: 1px solid #30363d; border-radius: 6px;
-        }
-        .cell { width: 12px; height: 12px; border-radius: 2px; background: #161b22; cursor: crosshair; }
-        .cell:hover { border: 1px solid #8b949e; }
-        
-        .cell[data-level="1"] { background: #0e4429; }
-        .cell[data-level="2"] { background: #006d32; }
-        .cell[data-level="3"] { background: #26a641; }
-        .cell[data-level="4"] { background: #39d353; }
+  <meta charset="UTF-8">
+  <title>Contribution Painter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #0a0c10;
+      --surface:  #111318;
+      --panel:    #161a22;
+      --border:   #21262e;
+      --border2:  #30363d;
+      --text:     #cdd9e5;
+      --muted:    #768390;
+      --accent:   #3fb950;
+      --accent2:  #238636;
+      --accent-d: #1a6e28;
+      --danger:   #e05252;
+      --info:     #58a6ff;
+      --c0:       #161b22;
+      --c1:       #0e4429;
+      --c2:       #006d32;
+      --c3:       #26a641;
+      --c4:       #39d353;
+      --gap:      3px;
+      --cell:     13px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 80px;
+      user-select: none;
+    }
+    header {
+      width: 100%;
+      max-width: 820px;
+      margin-bottom: 36px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .wordmark {
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+    .wordmark span { color: var(--accent); }
+    .header-actions { display: flex; gap: 8px; }
+    .btn {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border2);
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+    }
+    .btn:hover { background: #1e2430; border-color: #444c56; }
+    .btn:active { opacity: 0.75; }
+    .btn.primary {
+      background: var(--accent2);
+      border-color: var(--accent-d);
+      color: #fff;
+    }
+    .btn.primary:hover { background: #2ea043; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn.danger { border-color: var(--danger); color: var(--danger); }
+    .btn.danger:hover { background: rgba(224,82,82,0.1); }
+    .btn-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .canvas-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 20px 16px;
+      width: fit-content;
+    }
+    .graph-area {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+    }
+    .day-labels {
+      display: grid;
+      grid-template-rows: repeat(7, var(--cell));
+      gap: var(--gap);
+      margin-top: 18px;
+      flex-shrink: 0;
+    }
+    .day-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      line-height: var(--cell);
+      text-align: right;
+      height: var(--cell);
+      /* odd rows hidden */
+    }
+    .day-label.hidden { visibility: hidden; }
+    .graph-right {
+      display: flex;
+      flex-direction: column;
+    }
+    .month-labels {
+      position: relative;
+      height: 14px;
+      margin-bottom: 4px;
+      /* width set by JS */
+    }
+    .month-label {
+      position: absolute;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      top: 0;
+      white-space: nowrap;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(52, var(--cell));
+      grid-template-rows: repeat(7, var(--cell));
+      grid-auto-flow: column;
+      gap: var(--gap);
+    }
+    .cell {
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: 2px;
+      background: var(--c0);
+      outline: 1px solid rgba(255,255,255,0.04);
+      cursor: crosshair;
+      transition: transform 0.06s, outline-color 0.06s;
+    }
+    .cell:hover { transform: scale(1.35); z-index: 1; position: relative; outline-color: rgba(255,255,255,0.18); }
+    .cell[data-level="1"] { background: var(--c1); outline-color: rgba(255,255,255,0.05); }
+    .cell[data-level="2"] { background: var(--c2); outline-color: rgba(255,255,255,0.06); }
+    .cell[data-level="3"] { background: var(--c3); outline-color: rgba(255,255,255,0.08); }
+    .cell[data-level="4"] { background: var(--c4); outline-color: rgba(255,255,255,0.1); }
 
-        .controls { margin-top: 30px; text-align: center; }
-        button { 
-            background-color: #238636; color: white; border: 1px solid rgba(240,246,252,0.1);
-            padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer;
-        }
-        button:disabled { background-color: #161b22; color: #484f58; cursor: not-allowed; }
-        .instructions { margin-top: 15px; color: #8b949e; font-size: 13px; line-height: 1.6; }
-    </style>
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      justify-content: flex-end;
+      font-family: 'Space Mono', monospace;
+    }
+    .legend-cell {
+      width: 13px; height: 13px;
+      border-radius: 2px;
+      outline: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 820px;
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .controls-left { display: flex; gap: 8px; flex: 1; flex-wrap: wrap; }
+    .controls-right { display: flex; gap: 8px; }
+
+    .brush-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .brush-dot {
+      width: 12px; height: 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      transition: border-color 0.1s, transform 0.1s;
+    }
+    .brush-dot:hover { transform: scale(1.2); }
+    .brush-dot.active { border-color: #fff; }
+    .brush-dot[data-b="1"] { background: var(--c1); }
+    .brush-dot[data-b="2"] { background: var(--c2); }
+    .brush-dot[data-b="3"] { background: var(--c3); }
+    .brush-dot[data-b="4"] { background: var(--c4); }
+
+    .artgen {
+      width: 100%;
+      max-width: 820px;
+      margin-top: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .artgen-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .artgen-header:hover { background: rgba(255,255,255,0.02); }
+    .artgen-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+    .artgen-subtitle { font-size: 12px; color: var(--muted); margin-left: auto; }
+    .artgen-body {
+      padding: 16px 18px;
+      display: none;
+    }
+    .artgen-body.open { display: block; }
+    .artgen-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .artgen-input-wrap { flex: 1; min-width: 180px; }
+    .artgen-input-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 5px;
+      font-family: 'Space Mono', monospace;
+    }
+    .artgen-input {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: 'Space Mono', monospace;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .artgen-input:focus { border-color: var(--accent); }
+    .artgen-options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .artgen-option-label { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; margin-bottom: 2px; }
+    .artgen-select {
+      background: var(--panel);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 12px;
+      padding: 7px 10px;
+      outline: none;
+      cursor: pointer;
+    }
+    .artgen-preview-note {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+    .intensity-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .intensity-opt {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .intensity-opt input { cursor: pointer; accent-color: var(--accent); }
+
+    .gh-panel {
+      width: 100%;
+      max-width: 820px;
+      margin-top: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .gh-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .gh-header:hover { background: rgba(255,255,255,0.02); }
+    .gh-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--info);
+      letter-spacing: 0.05em;
+    }
+    .gh-subtitle { font-size: 12px; color: var(--muted); margin-left: auto; }
+    .gh-body { padding: 16px 18px; display: none; }
+    .gh-body.open { display: block; }
+    .gh-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .gh-field { flex: 1; min-width: 200px; }
+    .gh-label { font-size: 11px; color: var(--muted); margin-bottom: 5px; font-family: 'Space Mono', monospace; }
+    .gh-input {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Space Mono', monospace;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .gh-input:focus { border-color: var(--info); }
+    .gh-select {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      cursor: pointer;
+    }
+    .gh-status {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      min-height: 18px;
+    }
+    .gh-status.ok { color: var(--accent); }
+    .gh-status.err { color: var(--danger); }
+
+    .instructions {
+      width: 100%;
+      max-width: 820px;
+      margin-top: 16px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .instruction-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .instruction-key {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: var(--text);
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--panel);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 13px;
+      color: var(--text);
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      z-index: 999;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.ok { border-color: var(--accent); }
+    #toast.err { border-color: var(--danger); color: var(--danger); }
+
+    #progress-wrap {
+      width: 100%;
+      max-width: 820px;
+      margin-top: 14px;
+      display: none;
+    }
+    #progress-wrap.show { display: block; }
+    #progress-bar-bg {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.2s;
+    }
+    #progress-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+
+    .chevron { transition: transform 0.2s; font-size: 12px; color: var(--muted); }
+    .chevron.open { transform: rotate(90deg); }
+  </style>
 </head>
 <body oncontextmenu="return false;">
-    <h1>Contribution Graph Painter</h1>
-    
-    <div class="grid" id="canvas"></div>
 
-    <div class="controls">
-        <button id="submitBtn" onclick="submitArt()">Generate Commits</button>
-        <button onclick="location.reload()" style="background: #30363d; margin-left: 10px;">Clear</button>
-        
-        <div class="instructions">
-            <b>Left-Click & Drag:</b> Paint & Darken<br>
-            <b>Right-Click:</b> Erase (Reset to Empty)
-        </div>
+<header>
+  <div class="wordmark">contrib<span>.</span>painter</div>
+  <div class="header-actions">
+    <button class="btn" onclick="showHelp()">?</button>
+  </div>
+</header>
+
+<div class="canvas-wrap">
+  <div class="graph-area">
+    <div class="day-labels" id="dayLabels">
+      <div class="day-label hidden"></div>
+      <div class="day-label">Mon</div>
+      <div class="day-label hidden"></div>
+      <div class="day-label">Wed</div>
+      <div class="day-label hidden"></div>
+      <div class="day-label">Fri</div>
+      <div class="day-label hidden"></div>
     </div>
+    <div class="graph-right">
+      <div class="month-labels" id="monthLabels"></div>
+      <div class="grid" id="canvas"></div>
+    </div>
+  </div>
+  <div class="legend">
+    <span>Less</span>
+    <div class="legend-cell" style="background:var(--c0)"></div>
+    <div class="legend-cell" style="background:var(--c1)"></div>
+    <div class="legend-cell" style="background:var(--c2)"></div>
+    <div class="legend-cell" style="background:var(--c3)"></div>
+    <div class="legend-cell" style="background:var(--c4)"></div>
+    <span>More</span>
+  </div>
+</div>
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        let isDrawing = false;
-        for (let x = 0; x < 52; x++) {
-            for (let y = 0; y < 7; y++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.dataset.x = x;
-                cell.dataset.y = y;
-                cell.dataset.level = 0;
+<div class="controls">
+  <div class="controls-left">
+    <div class="brush-wrap">
+      <span>Brush</span>
+      <div class="brush-dot active" data-b="4" title="Max (15 commits)" onclick="setBrush(4)"></div>
+      <div class="brush-dot" data-b="3" title="High (10 commits)" onclick="setBrush(3)"></div>
+      <div class="brush-dot" data-b="2" title="Mid (5 commits)" onclick="setBrush(2)"></div>
+      <div class="brush-dot" data-b="1" title="Low (2 commits)" onclick="setBrush(1)"></div>
+    </div>
+    <button class="btn" onclick="fillAll()">Fill All</button>
+    <button class="btn danger" onclick="clearCanvas()">Clear</button>
+  </div>
+  <div class="controls-right">
+    <button class="btn primary btn-icon" id="submitBtn" onclick="submitArt()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2.5a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v10a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2.5zm1 1V12h9V3.5H3.5zm4.25 1.75a.75.75 0 0 1 1.5 0v3.19l1.22-1.22a.75.75 0 1 1 1.06 1.06l-2.5 2.5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 1 1 1.06-1.06l1.22 1.22V5.25z"/></svg>
+      Generate Commits
+    </button>
+  </div>
+</div>
+<div id="progress-wrap">
+  <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+  <div id="progress-label">Preparing...</div>
+</div>
 
-                cell.onmousedown = (e) => {
-                    isDrawing = true;
-                    paint(cell, e.button === 2);
-                };
-                cell.onmouseenter = (e) => {
-                    if (isDrawing) paint(cell, e.buttons === 2);
-                };
+<div class="artgen">
+  <div class="artgen-header" onclick="togglePanel('artgen')">
+    <span class="chevron" id="artgen-chevron">▶</span>
+    <span class="artgen-title">TEXT → ART</span>
+    <span class="artgen-subtitle">render text as pixel art on the grid</span>
+  </div>
+  <div class="artgen-body" id="artgen-body">
+    <div class="artgen-row">
+      <div class="artgen-input-wrap">
+        <div class="artgen-input-label">TEXT INPUT</div>
+        <input class="artgen-input" id="artText" type="text" maxlength="9" placeholder="HI WORLD" autocomplete="off" oninput="previewText()">
+      </div>
+      <div class="artgen-options">
+        <div>
+          <div class="artgen-option-label">ALIGN</div>
+          <select class="artgen-select" id="artAlign" onchange="previewText()">
+            <option value="left">Left</option>
+            <option value="center" selected>Center</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        <div>
+          <div class="artgen-option-label">INTENSITY</div>
+          <select class="artgen-select" id="artIntensity">
+            <option value="4" selected>Max (dark green)</option>
+            <option value="3">High</option>
+            <option value="2">Mid</option>
+            <option value="1">Low</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+        <button class="btn primary" onclick="applyText()">Apply to Grid</button>
+        <button class="btn" onclick="clearTextPreview()">Clear Text</button>
+      </div>
+    </div>
+    <div class="artgen-preview-note">Tip: up to ~8 chars fit on the grid · right-click to erase manually after applying</div>
+  </div>
+</div>
 
-                canvas.appendChild(cell);
-            }
+<div class="gh-panel">
+  <div class="gh-header" onclick="togglePanel('gh')">
+    <span class="chevron" id="gh-chevron">▶</span>
+    <span class="gh-title">GITHUB INTEGRATION</span>
+    <span class="gh-subtitle">auto-push to any repo</span>
+  </div>
+  <div class="gh-body" id="gh-body">
+    <div class="gh-row">
+      <div class="gh-field">
+        <div class="gh-label">PERSONAL ACCESS TOKEN</div>
+        <input class="gh-input" id="ghToken" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      </div>
+      <button class="btn" onclick="loadRepos()" style="height:36px;align-self:flex-end">Load Repos</button>
+    </div>
+    <div class="gh-row" style="margin-top:12px">
+      <div class="gh-field">
+        <div class="gh-label">REPOSITORY</div>
+        <select class="gh-select" id="ghRepo">
+          <option value="">— connect token first —</option>
+        </select>
+      </div>
+      <div class="gh-field">
+        <div class="gh-label">BRANCH</div>
+        <input class="gh-input" id="ghBranch" value="main" style="max-width:100px">
+      </div>
+      <button class="btn primary" onclick="pushToGitHub()" id="ghPushBtn" disabled style="height:36px;align-self:flex-end">Push to GitHub</button>
+    </div>
+    <div class="gh-status" id="ghStatus">Enter a token with repo scope to get started.</div>
+  </div>
+</div>
+<div class="instructions">
+  <div class="instruction-item"><span class="instruction-key">left drag</span> Paint &amp; darken</div>
+  <div class="instruction-item"><span class="instruction-key">right click</span> Erase cell</div>
+  <div class="instruction-item"><span class="instruction-key">fill all</span> Flood with max intensity</div>
+  <div class="instruction-item"><span class="instruction-key">brush dots</span> Set paint level</div>
+</div>
+<div id="toast"></div>
+
+<script>
+let isDrawing = false;
+let currentBrush = 4;
+let cells = [];
+let repos = [];
+
+// this is my honest atempt at mapping a pixel font, I suck at this btw
+const FONT = {
+  ' ': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  'A': [0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
+  'B': [1,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,1,1,1,0],
+  'C': [0,1,1,1,1,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,1,1,1],
+  'D': [1,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,1,1,1,0],
+  'E': [1,1,1,1,1,1,0,0,0,0,1,0,0,0,0,1,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,1,1,1,1],
+  'F': [1,1,1,1,1,1,0,0,0,0,1,0,0,0,0,1,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0],
+  'G': [0,1,1,1,1,1,0,0,0,0,1,0,0,0,0,1,0,1,1,1,1,0,0,0,1,1,0,0,0,1,0,1,1,1,1],
+  'H': [1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
+  'I': [1,1,1,1,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,1,1,1,1,1],
+  'J': [0,0,1,1,1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,1,0,0,1,0,1,0,0,1,0,0,1,1,0,0],
+  'K': [1,0,0,0,1,1,0,0,1,0,1,0,1,0,0,1,1,0,0,0,1,0,1,0,0,1,0,0,1,0,1,0,0,0,1],
+  'L': [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,1,1,1,1],
+  'M': [1,0,0,0,1,1,1,0,1,1,1,0,1,0,1,1,0,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
+  'N': [1,0,0,0,1,1,1,0,0,1,1,0,1,0,1,1,0,0,1,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
+  'O': [0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,0,1,1,1,0],
+  'P': [1,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0],
+  'Q': [0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1,0,1,1,0,0,1,0,0,1,1,0,1],
+  'R': [1,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,1,1,1,0,1,0,1,0,0,1,0,0,1,0,1,0,0,0,1],
+  'S': [0,1,1,1,1,1,0,0,0,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,1,0,0,0,0,1,1,1,1,1,0],
+  'T': [1,1,1,1,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0],
+  'U': [1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,0,1,1,1,0],
+  'V': [1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,0,1,0,1,0,0,0,1,0,0],
+  'W': [1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1,0,1,1,0,1,0,1,1,1,0,1,1,1,0,0,0,1],
+  'X': [1,0,0,0,1,1,0,0,0,1,0,1,0,1,0,0,0,1,0,0,0,1,0,1,0,1,0,0,0,1,1,0,0,0,1],
+  'Y': [1,0,0,0,1,1,0,0,0,1,0,1,0,1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0],
+  'Z': [1,1,1,1,1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1,1,1,1,1],
+  '0': [0,1,1,1,0,1,0,0,1,1,1,0,0,1,1,1,0,1,0,1,1,1,0,0,1,1,0,0,1,1,0,1,1,1,0],
+  '1': [0,0,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1,1,1,0],
+  '2': [0,1,1,1,0,1,0,0,0,1,0,0,0,0,1,0,0,1,1,0,0,1,0,0,0,1,0,0,0,0,1,1,1,1,1],
+  '3': [1,1,1,1,0,0,0,0,0,1,0,0,0,0,1,0,1,1,1,0,0,0,0,0,1,0,0,0,0,1,1,1,1,1,0],
+  '4': [0,0,0,1,0,0,0,1,1,0,0,1,0,1,0,1,0,0,1,0,1,1,1,1,1,0,0,0,1,0,0,0,0,1,0],
+  '5': [1,1,1,1,1,1,0,0,0,0,1,0,0,0,0,1,1,1,1,0,0,0,0,0,1,0,0,0,0,1,1,1,1,1,0],
+  '6': [0,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,1,1,1,0,1,0,0,0,1,1,0,0,0,1,0,1,1,1,0],
+  '7': [1,1,1,1,1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0],
+  '8': [0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,0,1,1,1,0],
+  '9': [0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,0,1,1,1,1,0,0,0,0,1,0,0,0,0,1,0,1,1,1,0],
+  '!': [0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],
+  '?': [0,1,1,1,0,1,0,0,0,1,0,0,0,0,1,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0],
+  '.': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],
+  '-': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  '+': [0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,1,1,1,1,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0],
+  '<': [0,0,0,1,1,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,1],
+  '>': [1,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,1,1,0,0,0],
+  '#': [0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,0,1,0,1,0,0,0,0,0,0],
+};
+const CHAR_W = 5, CHAR_H = 7, CHAR_GAP = 1;
+
+function buildMonthLabels() {
+  const el = document.getElementById('monthLabels');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const CELL = 13, GAP = 3, COL_STEP = CELL + GAP;
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setFullYear(start.getFullYear() - 1);
+  start.setDate(start.getDate() - start.getDay());
+
+  // Total grid width
+  const totalW = 52 * CELL + 51 * GAP;
+  el.style.width = totalW + 'px';
+
+  let lastMonth = -1;
+  for (let w = 0; w < 52; w++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + w * 7);
+    if (d.getMonth() !== lastMonth) {
+      const span = document.createElement('span');
+      span.className = 'month-label';
+      span.textContent = months[d.getMonth()];
+      span.style.left = (w * COL_STEP) + 'px';
+      el.appendChild(span);
+      lastMonth = d.getMonth();
+    }
+  }
+}
+
+function buildGrid() {
+  const canvas = document.getElementById('canvas');
+  cells = [];
+  for (let x = 0; x < 52; x++) {
+    cells[x] = [];
+    for (let y = 0; y < 7; y++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+      cell.dataset.level = 0;
+      cell.onmousedown = (e) => { isDrawing = true; paint(cell, e.button === 2); e.preventDefault(); };
+      cell.onmouseenter = (e) => { if (isDrawing) paint(cell, e.buttons === 2); };
+      canvas.appendChild(cell);
+      cells[x][y] = cell;
+    }
+  }
+  window.onmouseup = () => isDrawing = false;
+}
+
+function setLevel(cell, level) {
+  cell.dataset.level = level;
+}
+
+function paint(cell, erase = false) {
+  let level = parseInt(cell.dataset.level);
+  setLevel(cell, erase ? 0 : Math.min(currentBrush, 4));
+}
+
+function clearCanvas() { cells.flat().forEach(c => setLevel(c, 0)); }
+function fillAll() { cells.flat().forEach(c => setLevel(c, currentBrush)); }
+
+function setBrush(level) {
+  currentBrush = level;
+  document.querySelectorAll('.brush-dot').forEach(d => d.classList.remove('active'));
+  document.querySelector(`.brush-dot[data-b="${level}"]`).classList.add('active');
+}
+
+function renderText(text, align, intensity) {
+  const upper = text.toUpperCase();
+  const chars = upper.split('').filter(c => FONT[c] !== undefined);
+  if (!chars.length) return;
+  const totalCols = chars.reduce((acc, c, i) => acc + CHAR_W + (i < chars.length - 1 ? CHAR_GAP : 0), 0);
+
+  let startX = 0;
+  if (align === 'center') startX = Math.floor((52 - totalCols) / 2);
+  else if (align === 'right') startX = 52 - totalCols;
+  startX = Math.max(0, startX);
+
+  const startY = 0; // top of grid, 7 rows = perfect fit
+
+  // Clear old text area
+  cells.flat().forEach(c => setLevel(c, 0));
+
+  let cx = startX;
+  for (const ch of chars) {
+    const bitmap = FONT[ch];
+    for (let col = 0; col < CHAR_W; col++) {
+      for (let row = 0; row < CHAR_H; row++) {
+        const gx = cx + col;
+        const gy = startY + row;
+        if (gx < 52 && gy < 7 && bitmap[row * CHAR_W + col]) {
+          setLevel(cells[gx][gy], intensity);
         }
+      }
+    }
+    cx += CHAR_W + CHAR_GAP;
+    if (cx >= 52) break;
+  }
+}
 
-        window.onmouseup = () => isDrawing = false;
+function previewText() {
+  const text = document.getElementById('artText').value;
+  const align = document.getElementById('artAlign').value;
+  const intensity = parseInt(document.getElementById('artIntensity').value);
+  if (text.trim()) renderText(text, align, intensity);
+  else clearCanvas();
+}
 
-        function paint(cell, erase = false) {
-            let level = parseInt(cell.dataset.level);
-            if (erase) {
-                level = 0;
-            } else {
-                level = level >= 4 ? 4 : level + 1;
-            }
-            cell.dataset.level = level;
-        }
+function applyText() {
+  previewText();
+  toast('Applied! Right-click cells to erase.', 'ok');
+}
 
-        async function submitArt() {
-            const cells = document.querySelectorAll('.cell');
-            const pixels = [];
+function clearTextPreview() {
+  document.getElementById('artText').value = '';
+  clearCanvas();
+}
 
-            cells.forEach(c => {
-                const level = parseInt(c.dataset.level);
-                if (level > 0) {
-                    const intensityMap = [0, 2, 5, 10, 15]; 
-                    pixels.push({ 
-                        x: c.dataset.x, 
-                        y: c.dataset.y, 
-                        intensity: intensityMap[level] 
-                    });
-                }
-            });
-            
-            if (pixels.length === 0) return alert("Canvas is empty!");
+function togglePanel(id) {
+  const body = document.getElementById(`${id}-body`);
+  const chevron = document.getElementById(`${id}-chevron`);
+  const isOpen = body.classList.toggle('open');
+  chevron.classList.toggle('open', isOpen);
+}
 
-            const btn = document.getElementById('submitBtn');
-            btn.innerText = "Writing Commits... (Check Terminal)";
-            btn.disabled = true;
+async function loadRepos() {
+  const token = document.getElementById('ghToken').value.trim();
+  if (!token) return setGhStatus('Paste a personal access token first.', 'err');
+  setGhStatus('Loading repositories…');
 
-            try {
-                const res = await fetch('/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pixels })
-                });
-                const data = await res.json();
-                alert(data.message);
-            } catch (err) {
-                alert("Error: Is the server.js running?");
-            } finally {
-                btn.innerText = "Generate Commits";
-                btn.disabled = false;
-            }
-        }
-    </script>
+  try {
+    const res = await fetch('/gh/repos', {
+      headers: { 'x-gh-token': token }
+    });
+    const data = await res.json();
+    if (!res.ok) return setGhStatus(`Error: ${data.message || 'Could not load repos'}`, 'err');
+
+    repos = data;
+    const sel = document.getElementById('ghRepo');
+    sel.innerHTML = '';
+    data.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.full_name;
+      opt.textContent = `${r.private ? '🔒 ' : ''}${r.full_name}`;
+      sel.appendChild(opt);
+    });
+    document.getElementById('ghPushBtn').disabled = false;
+    setGhStatus(`Loaded ${data.length} repositories.`, 'ok');
+  } catch (e) {
+    setGhStatus('Network error. Is the server running?', 'err');
+  }
+}
+
+async function pushToGitHub() {
+  const token = document.getElementById('ghToken').value.trim();
+  const repo = document.getElementById('ghRepo').value;
+  const branch = document.getElementById('ghBranch').value.trim() || 'main';
+  if (!token || !repo) return setGhStatus('Fill token and select a repo.', 'err');
+
+  const pixels = getPixels();
+  if (!pixels.length) return toast('Canvas is empty!', 'err');
+
+  document.getElementById('ghPushBtn').disabled = true;
+  setGhStatus('Generating commits and pushing…');
+
+  try {
+    const res = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pixels, ghToken: token, ghRepo: repo, ghBranch: branch })
+    });
+    const data = await res.json();
+    if (res.ok) setGhStatus(data.message, 'ok');
+    else setGhStatus(`Error: ${data.message}`, 'err');
+  } catch (e) {
+    setGhStatus('Server error during push.', 'err');
+  } finally {
+    document.getElementById('ghPushBtn').disabled = false;
+  }
+}
+
+function setGhStatus(msg, cls = '') {
+  const el = document.getElementById('ghStatus');
+  el.textContent = msg;
+  el.className = 'gh-status ' + cls;
+}
+
+function getPixels() {
+  const intensityMap = [0, 2, 5, 10, 15];
+  const pixels = [];
+  cells.flat().forEach(c => {
+    const level = parseInt(c.dataset.level);
+    if (level > 0) {
+      pixels.push({ x: +c.dataset.x, y: +c.dataset.y, intensity: intensityMap[level] });
+    }
+  });
+  return pixels;
+}
+
+async function submitArt() {
+  const pixels = getPixels();
+  if (!pixels.length) return toast('Canvas is empty!', 'err');
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3zm0 9a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" opacity=".3"/><path d="M15 8a7 7 0 0 0-7-7v2a5 5 0 0 1 5 5h2z"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.8s" repeatCount="indefinite"/></path></svg> Writing…`;
+
+  showProgress(0, 'Preparing commits…');
+
+  try {
+    const res = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pixels })
+    });
+    const data = await res.json();
+    showProgress(100, 'Done!');
+    toast(data.message, res.ok ? 'ok' : 'err');
+  } catch {
+    toast('Error: Is server.js running?', 'err');
+  } finally {
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2.5a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v10a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2.5zm1 1V12h9V3.5H3.5zm4.25 1.75a.75.75 0 0 1 1.5 0v3.19l1.22-1.22a.75.75 0 1 1 1.06 1.06l-2.5 2.5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 1 1 1.06-1.06l1.22 1.22V5.25z"/></svg> Generate Commits`;
+    btn.disabled = false;
+    setTimeout(() => hideProgress(), 2000);
+  }
+}
+
+function showProgress(pct, label) {
+  document.getElementById('progress-wrap').classList.add('show');
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+}
+function hideProgress() {
+  document.getElementById('progress-wrap').classList.remove('show');
+}
+
+let toastTimer;
+function toast(msg, cls = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + cls;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 3500);
+}
+
+function showHelp() {
+  toast('Left-drag: paint · Right-click: erase · Text→Art: type text then Apply');
+}
+buildMonthLabels();
+buildGrid();
+</script>
 </body>
 </html>
